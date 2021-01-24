@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/kaiiak/zaptext"
+	. "github.com/kaiiak/zaptext"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -12,7 +12,7 @@ import (
 func TestNewTextEncoder(t *testing.T) {
 	var (
 		cnf    = zap.NewProductionEncoderConfig()
-		te     = zaptext.NewTextEncoder(cnf)
+		te     = NewTextEncoder(cnf)
 		logger = zap.New(zapcore.NewCore(te, nil, zap.NewAtomicLevel()))
 	)
 	zap.ReplaceGlobals(logger)
