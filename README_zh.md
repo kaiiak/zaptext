@@ -1,8 +1,8 @@
 # Zaptext
-![[Build status](https://github.com/kaiiak/zaptext/actions)](https://github.com/kaiiak/zaptext/workflows/build/badge.svg)
-Zap文本日志
-
-
+Zap text encoder
+[![Build status](https://github.com/kaiiak/zaptext/workflows/build/badge.svg)](https://github.com/kaiiak/zaptext/actions)
+[![Go Reference](https://pkg.go.dev/badge/github.com/kaiiak/zaptext.svg)](https://pkg.go.dev/github.com/kaiiak/zaptext)
+[![GoReport](https://goreportcard.com/badge/github.com/kaiiak/zaptext)](https://goreportcard.com/report/github.com/kaiiak/zaptext)
 
 ## 快速开始
 
