@@ -9,6 +9,7 @@ import (
 
 	"go.uber.org/zap/buffer"
 	"go.uber.org/zap/zapcore"
+	"golang.org/x/text/encoding"
 )
 
 const (
@@ -18,13 +19,12 @@ const (
 type (
 	TextEncoder struct {
 		*zapcore.EncoderConfig
-		buf            *buffer.Buffer
-		openNamespaces int
-		spaced         bool
+		buf    *buffer.Buffer
+		spaced bool
 
 		// for encoding generic values by reflection
 		reflectBuf *buffer.Buffer
-		reflectEnc *ReflectEncoder
+		reflectEnc *encoding.Encoder
 	}
 )
 
@@ -184,10 +184,38 @@ func (enc *TextEncoder) AddUintptr(key string, value uintptr) {
 	enc.AddUint64(key, uint64(value))
 }
 
+func (enc *TextEncoder) resetReflectBuf() {
+	if enc.reflectBuf == nil {
+		enc.reflectBuf = buffpoll.Get()
+		enc.reflectEnc = &encoding.Encoder{}
+
+		// For consistency with our custom JSON encoder.
+		// enc.reflectEnc.SetEscapeHTML(false)
+	} else {
+		enc.reflectBuf.Reset()
+	}
+}
+
+var nullLiteralBytes = []byte("null")
+
+func (enc *TextEncoder) encodeReflected(obj interface{}) ([]byte, error) {
+	if obj == nil {
+		return nullLiteralBytes, nil
+	}
+	enc.resetReflectBuf()
+	return nil, nil
+}
+
 // AddReflected uses reflection to serialize arbitrary objects, so it can be
 // slow and allocation-heavy.
 func (enc *TextEncoder) AddReflected(key string, value interface{}) (err error) {
-	// TODO
+	var valueBytes []byte
+	valueBytes, err = enc.encodeReflected(value)
+	if err != nil {
+		return err
+	}
+	enc.addKey(key)
+	_, err = enc.buf.Write(valueBytes)
 	return
 }
 

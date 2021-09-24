@@ -6,21 +6,23 @@ import (
 )
 
 type ReflectEncoder struct {
-	w   io.Writer
-	err error
-	buf *bytes.Buffer
+	w          io.Writer
+	err        error
+	escapeHTML bool
+
+	indentBuf *bytes.Buffer
 }
 
 func NewReflectEncoder(w io.Writer) *ReflectEncoder {
-	return &ReflectEncoder{w: w}
+	return &ReflectEncoder{w: w, escapeHTML: true}
 }
 
-func (enc *ReflectEncoder) Encode() error {
+func (enc *ReflectEncoder) Encode(obj interface{}) error {
 	if enc.err != nil {
 		return enc.err
 	}
-	if enc.buf == nil {
-		enc.buf = new(bytes.Buffer)
+	if enc.indentBuf == nil {
+		enc.indentBuf = new(bytes.Buffer)
 	}
 
 	return nil

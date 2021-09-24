@@ -13,7 +13,7 @@ func TestNewTextEncoder(t *testing.T) {
 	var (
 		cnf    = zap.NewProductionEncoderConfig()
 		te     = NewTextEncoder(cnf)
-		logger = zap.New(zapcore.NewCore(te, nil, zap.NewAtomicLevel()))
+		logger = zap.New(zapcore.NewCore(te, newTestingWriter(t), zap.NewAtomicLevel()))
 	)
 	zap.ReplaceGlobals(logger)
 }

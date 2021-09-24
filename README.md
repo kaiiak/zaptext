@@ -12,3 +12,7 @@ Zap text encoder instance
 cfg := zapcore.NewProductionEncoderConfig()
 zaptext.NewTextencoder(cfg)
 ```
+
+## Thanks
+
+- [zap](https://github.com/uber-go/zap): Refer to some implementations
