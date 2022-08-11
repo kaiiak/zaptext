@@ -9,7 +9,6 @@ import (
 
 	"go.uber.org/zap/buffer"
 	"go.uber.org/zap/zapcore"
-	"golang.org/x/text/encoding"
 )
 
 const (
@@ -24,7 +23,6 @@ type (
 
 		// for encoding generic values by reflection
 		reflectBuf *buffer.Buffer
-		reflectEnc *encoding.Encoder
 	}
 )
 
@@ -187,8 +185,6 @@ func (enc *TextEncoder) AddUintptr(key string, value uintptr) {
 func (enc *TextEncoder) resetReflectBuf() {
 	if enc.reflectBuf == nil {
 		enc.reflectBuf = buffpoll.Get()
-		enc.reflectEnc = &encoding.Encoder{}
-
 		// For consistency with our custom JSON encoder.
 		// enc.reflectEnc.SetEscapeHTML(false)
 	} else {
