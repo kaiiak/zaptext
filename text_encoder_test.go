@@ -2,7 +2,9 @@ package zaptext_test
 
 import (
 	"bytes"
+	"strings"
 	"testing"
+	"time"
 
 	. "github.com/kaiiak/zaptext"
 	"go.uber.org/zap"
@@ -16,6 +18,68 @@ func TestNewTextEncoder(t *testing.T) {
 		logger = zap.New(zapcore.NewCore(te, newTestingWriter(t), zap.NewAtomicLevel()))
 	)
 	zap.ReplaceGlobals(logger)
+}
+
+func TestTextEncoderFormatsCorrectly(t *testing.T) {
+	cfg := zap.NewProductionEncoderConfig()
+	cfg.TimeKey = "ts"
+	cfg.LevelKey = "level"
+	cfg.MessageKey = "msg"
+	cfg.EncodeTime = zapcore.ISO8601TimeEncoder
+	cfg.EncodeLevel = zapcore.CapitalLevelEncoder
+	cfg.EncodeDuration = zapcore.StringDurationEncoder
+	
+	encoder := NewTextEncoder(cfg)
+	
+	var buf bytes.Buffer
+	core := zapcore.NewCore(encoder, zapcore.AddSync(&buf), zap.InfoLevel)
+	logger := zap.New(core)
+	
+	logger.Info("Test message",
+		zap.String("str", "value1"),
+		zap.String("str_with_spaces", "value with spaces"),
+		zap.Int("int", 42),
+		zap.Bool("bool", true),
+		zap.Duration("duration", time.Second*5),
+		zap.Ints("array", []int{1, 2, 3}),
+	)
+	
+	output := buf.String()
+	
+	// Check that it contains expected components
+	if !strings.Contains(output, "INFO") {
+		t.Errorf("Expected INFO level in output, got: %s", output)
+	}
+	
+	if !strings.Contains(output, "Test message") {
+		t.Errorf("Expected message in output, got: %s", output)
+	}
+	
+	if !strings.Contains(output, "str=value1") {
+		t.Errorf("Expected str=value1 in output, got: %s", output)
+	}
+	
+	if !strings.Contains(output, "str_with_spaces=\"value with spaces\"") {
+		t.Errorf("Expected quoted string with spaces in output, got: %s", output)
+	}
+	
+	if !strings.Contains(output, "int=42") {
+		t.Errorf("Expected int=42 in output, got: %s", output)
+	}
+	
+	if !strings.Contains(output, "bool=true") {
+		t.Errorf("Expected bool=true in output, got: %s", output)
+	}
+	
+	if !strings.Contains(output, "duration=5s") {
+		t.Errorf("Expected duration=5s in output, got: %s", output)
+	}
+	
+	if !strings.Contains(output, "array=[1,2,3]") {
+		t.Errorf("Expected array=[1,2,3] in output, got: %s", output)
+	}
+	
+	t.Logf("Output: %s", strings.TrimSpace(output))
 }
 
 // testingWriter is a WriteSyncer that writes to the given testing.TB.
