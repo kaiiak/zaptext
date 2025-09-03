@@ -13,13 +13,13 @@ func TestCustomTimeEncoderFactory(t *testing.T) {
 		if encoder == nil {
 			t.Errorf("CustomTimeEncoderFactory returned nil")
 		}
-		
+
 		// Test the encoder with a mock PrimitiveArrayEncoder
 		mockEncoder := &mockPrimitiveArrayEncoder{}
 		testTime := time.Date(2023, 9, 2, 10, 30, 15, 0, time.UTC)
-		
+
 		encoder(testTime, mockEncoder)
-		
+
 		if !mockEncoder.called {
 			t.Errorf("Expected encoder to call AppendString")
 		}
@@ -27,16 +27,16 @@ func TestCustomTimeEncoderFactory(t *testing.T) {
 			t.Errorf("Expected time format '2023-09-02T10:30:15Z', got '%s'", mockEncoder.value)
 		}
 	})
-	
+
 	t.Run("Create custom time encoder with custom layout", func(t *testing.T) {
 		layout := "2006-01-02 15:04:05"
 		encoder := CustomTimeEncoderFactory(layout)
-		
+
 		mockEncoder := &mockPrimitiveArrayEncoder{}
 		testTime := time.Date(2023, 9, 2, 10, 30, 15, 0, time.UTC)
-		
+
 		encoder(testTime, mockEncoder)
-		
+
 		if !mockEncoder.called {
 			t.Errorf("Expected encoder to call AppendString")
 		}
@@ -44,15 +44,15 @@ func TestCustomTimeEncoderFactory(t *testing.T) {
 			t.Errorf("Expected time format '2023-09-02 10:30:15', got '%s'", mockEncoder.value)
 		}
 	})
-	
+
 	t.Run("Create custom time encoder with kitchen layout", func(t *testing.T) {
 		encoder := CustomTimeEncoderFactory(time.Kitchen)
-		
+
 		mockEncoder := &mockPrimitiveArrayEncoder{}
 		testTime := time.Date(2023, 9, 2, 10, 30, 15, 0, time.UTC)
-		
+
 		encoder(testTime, mockEncoder)
-		
+
 		if !mockEncoder.called {
 			t.Errorf("Expected encoder to call AppendString")
 		}
