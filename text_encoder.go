@@ -21,6 +21,7 @@ type (
 		*zapcore.EncoderConfig
 		buf    *buffer.Buffer
 		spaced bool
+		inArray bool  // flag to track if we're inside an array
 
 		// for encoding generic values by reflection
 		reflectBuf *buffer.Buffer
@@ -44,23 +45,21 @@ func NewTextEncoder(cfg zapcore.EncoderConfig) zapcore.Encoder {
 
 func (enc *TextEncoder) addKey(key string) {
 	enc.addElementSeparator()
-	if enc.spaced {
+	enc.buf.AppendString(key)
+	enc.buf.AppendByte('=')
+}
+
+func (enc *TextEncoder) addElementSeparator() {
+	if enc.buf.Len() > 0 {
 		enc.buf.AppendByte(' ')
 	}
 }
 
-func (enc *TextEncoder) addElementSeparator() {
-	last := enc.buf.Len() - 1
-	if last < 0 {
-		return
-	}
-	switch enc.buf.Bytes()[last] {
-	case '{', '[', ':', ',', ' ':
-		return
-	default:
-		enc.buf.AppendByte(',')
-		if enc.spaced {
-			enc.buf.AppendByte(' ')
+func (enc *TextEncoder) addArrayElementSeparator() {
+	if enc.inArray && enc.buf.Len() > 0 {
+		last := enc.buf.Bytes()[enc.buf.Len()-1]
+		if last != '[' && last != '{' {
+			enc.buf.AppendByte(',')
 		}
 	}
 }
@@ -105,7 +104,6 @@ func (enc *TextEncoder) tryAddRuneSelf(b byte) bool {
 }
 
 func (enc *TextEncoder) appendFloat(val float64, bitSize int) {
-	enc.addElementSeparator()
 	switch {
 	case math.IsNaN(val):
 		enc.buf.AppendString(`"NaN"`)
@@ -116,6 +114,11 @@ func (enc *TextEncoder) appendFloat(val float64, bitSize int) {
 	default:
 		enc.buf.AppendFloat(val, bitSize)
 	}
+}
+
+func (enc *TextEncoder) appendFloatWithSeparator(val float64, bitSize int) {
+	enc.addArrayElementSeparator()
+	enc.appendFloat(val, bitSize)
 }
 
 // safeAddByteString is no-alloc equivalent of safeAddString(string(s)) for s []byte.
@@ -130,25 +133,91 @@ func (enc *TextEncoder) safeAddByteString(s []byte) {
 			i++
 			continue
 		}
-		enc.buf.Write(s[i : i+size])
+		_, _ = enc.buf.Write(s[i : i+size])
 		i += size
 	}
 }
 
 // Clone copies the encoder, ensuring that adding fields to the copy doesn't
 // affect the original.
-func (enc *TextEncoder) Clone() zapcore.Encoder { return enc }
+func (enc *TextEncoder) Clone() zapcore.Encoder { 
+	return &TextEncoder{
+		EncoderConfig: enc.EncoderConfig,
+		buf:          buffpoll.Get(),
+		spaced:       enc.spaced,
+		inArray:      false,
+	}
+}
 
 // EncodeEntry encodes an entry and fields, along with any accumulated
-// context, into a byte buffer and returns ienc. Any fields that are empty,
+// context, into a byte buffer and returns it. Any fields that are empty,
 // including fields on the `Entry` type, should be omitted.
-func (enc *TextEncoder) EncodeEntry(zapcore.Entry, []zapcore.Field) (buf *buffer.Buffer, err error) {
-	return
+func (enc *TextEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (buf *buffer.Buffer, err error) {
+	final := enc.clone()
+	
+	// Add timestamp
+	if final.TimeKey != "" && !ent.Time.IsZero() {
+		final.AddTime(final.TimeKey, ent.Time)
+	}
+	
+	// Add level
+	if final.LevelKey != "" {
+		final.addElementSeparator()
+		final.buf.AppendString(ent.Level.CapitalString())
+	}
+	
+	// Add caller info if enabled
+	if final.CallerKey != "" && ent.Caller.Defined {
+		final.addElementSeparator()
+		final.buf.AppendString(ent.Caller.TrimmedPath())
+	}
+	
+	// Add message
+	if final.MessageKey != "" && ent.Message != "" {
+		final.addElementSeparator()
+		final.buf.AppendString(ent.Message)
+	}
+	
+	// Add fields
+	for _, field := range fields {
+		field.AddTo(final)
+	}
+	
+	// Add newline
+	final.buf.AppendByte('\n')
+	
+	return final.buf, nil
+}
+
+func (enc *TextEncoder) clone() *TextEncoder {
+	clone := textpool.Get().(*TextEncoder)
+	clone.EncoderConfig = enc.EncoderConfig
+	clone.buf = buffpoll.Get()
+	clone.spaced = false
+	clone.inArray = false
+	clone.reflectBuf = nil
+	clone.reflectEnc = nil
+	return clone
 }
 
 // Logging-specific marshalers.
-func (enc *TextEncoder) AddArray(key string, marshaler zapcore.ArrayMarshaler) (err error)   { return }
-func (enc *TextEncoder) AddObject(key string, marshaler zapcore.ObjectMarshaler) (err error) { return }
+func (enc *TextEncoder) AddArray(key string, marshaler zapcore.ArrayMarshaler) (err error) {
+	enc.addKey(key)
+	enc.buf.AppendByte('[')
+	prevInArray := enc.inArray
+	enc.inArray = true
+	err = marshaler.MarshalLogArray(enc)
+	enc.inArray = prevInArray
+	enc.buf.AppendByte(']')
+	return
+}
+func (enc *TextEncoder) AddObject(key string, marshaler zapcore.ObjectMarshaler) (err error) {
+	enc.addKey(key)
+	enc.buf.AppendByte('{')
+	err = marshaler.MarshalLogObject(enc)
+	enc.buf.AppendByte('}')
+	return
+}
 
 func (enc *TextEncoder) AddComplex64(key string, value complex64) {
 	enc.AddComplex128(key, complex128(value))
@@ -230,23 +299,26 @@ func (enc *TextEncoder) AddBinary(key string, value []byte) {
 	enc.AddString(key, base64.StdEncoding.EncodeToString(value))
 }
 func (enc *TextEncoder) AddDuration(key string, value time.Duration) {
+	enc.addKey(key)
 	cur := enc.buf.Len()
 	if e := enc.EncodeDuration; e != nil {
 		e(value, enc)
 	}
 	if cur == enc.buf.Len() {
-		enc.AppendInt64(int64(value))
+		enc.buf.AppendString(value.String())
 	}
 }
 func (enc *TextEncoder) AddComplex128(key string, value complex128) {
-	enc.addElementSeparator()
+	enc.addKey(key)
 	// Cast to a platform-independent, fixed-size type.
 	r, i := float64(real(value)), float64(imag(value))
 	enc.buf.AppendByte('"')
 	// Because we're always in a quoted string, we can use strconv without
 	// special-casing NaN and +/-Inf.
 	enc.buf.AppendFloat(r, 64)
-	enc.buf.AppendByte('+')
+	if i >= 0 {
+		enc.buf.AppendByte('+')
+	}
 	enc.buf.AppendFloat(i, 64)
 	enc.buf.AppendByte('i')
 	enc.buf.AppendByte('"')
@@ -261,7 +333,14 @@ func (enc *TextEncoder) AddFloat64(key string, value float64) {
 }
 func (enc *TextEncoder) AddTime(key string, value time.Time) {
 	enc.addKey(key)
-	enc.buf.AppendTime(value, time.RFC3339)
+	cur := enc.buf.Len()
+	if e := enc.EncodeTime; e != nil {
+		e(value, enc)
+	}
+	if cur == enc.buf.Len() {
+		// User-supplied EncodeTime is a no-op.
+		enc.buf.AppendTime(value, time.RFC3339)
+	}
 }
 func (enc *TextEncoder) AddUint64(key string, value uint64) {
 	enc.addKey(key)
@@ -277,7 +356,27 @@ func (enc *TextEncoder) AddBool(key string, value bool) {
 }
 func (enc *TextEncoder) AddString(key, value string) {
 	enc.addKey(key)
-	enc.buf.AppendString(value)
+	// For text format, we'll add quotes only if the value contains spaces or special characters
+	if needsQuoting(value) {
+		enc.buf.AppendByte('"')
+		enc.buf.AppendString(value)
+		enc.buf.AppendByte('"')
+	} else {
+		enc.buf.AppendString(value)
+	}
+}
+
+// needsQuoting returns true if the string needs to be quoted in text format
+func needsQuoting(s string) bool {
+	if s == "" {
+		return true
+	}
+	for _, r := range s {
+		if r == ' ' || r == '\t' || r == '\n' || r == '\r' || r == '"' || r == '=' {
+			return true
+		}
+	}
+	return false
 }
 
 // ArrayEncoder
@@ -307,8 +406,13 @@ func (enc *TextEncoder) AppendTime(value time.Time) {
 
 // Logging-specific marshalers.{}
 func (enc *TextEncoder) AppendArray(arr zapcore.ArrayMarshaler) (err error) {
-	enc.addElementSeparator()
+	enc.addArrayElementSeparator()
+	enc.buf.AppendByte('[')
+	prevInArray := enc.inArray
+	enc.inArray = true
 	err = arr.MarshalLogArray(enc)
+	enc.inArray = prevInArray
+	enc.buf.AppendByte(']')
 	return
 }
 
@@ -326,36 +430,55 @@ func (enc *TextEncoder) AppendReflected(value interface{}) (err error) {
 }
 
 func (enc *TextEncoder) AppendBool(value bool) {
-	enc.addElementSeparator()
+	enc.addArrayElementSeparator()
 	enc.buf.AppendBool(value)
 }
 
 // for UTF-8 encoded bytes
 func (enc *TextEncoder) AppendByteString(value []byte) {
-	enc.addElementSeparator()
+	enc.addArrayElementSeparator()
 	enc.buf.AppendByte('"')
 	enc.safeAddByteString(value)
 	enc.buf.AppendByte('"')
 }
 
 func (enc *TextEncoder) AppendComplex128(value complex128) {
-	enc.addElementSeparator()
+	enc.addArrayElementSeparator()
 	// Cast to a platform-independent, fixed-size type.
 	r, i := float64(real(value)), float64(imag(value))
 	enc.buf.AppendByte('"')
 	// Because we're always in a quoted string, we can use strconv without
 	// special-casing NaN and +/-Inf.
 	enc.buf.AppendFloat(r, 64)
-	enc.buf.AppendByte('+')
+	if i >= 0 {
+		enc.buf.AppendByte('+')
+	}
 	enc.buf.AppendFloat(i, 64)
 	enc.buf.AppendByte('i')
 	enc.buf.AppendByte('"')
 }
 
-func (enc *TextEncoder) AppendUint64(value uint64)       { enc.buf.AppendUint(value) }
-func (enc *TextEncoder) AppendString(value string)       { enc.buf.AppendString(value) }
-func (enc *TextEncoder) AppendInt64(value int64)         { enc.buf.AppendInt(value) }
-func (enc *TextEncoder) AppendFloat64(value float64)     { enc.appendFloat(value, 64) }
+func (enc *TextEncoder) AppendUint64(value uint64) {
+	enc.addArrayElementSeparator()
+	enc.buf.AppendUint(value)
+}
+func (enc *TextEncoder) AppendString(value string) {
+	enc.addArrayElementSeparator()
+	if needsQuoting(value) {
+		enc.buf.AppendByte('"')
+		enc.buf.AppendString(value)
+		enc.buf.AppendByte('"')
+	} else {
+		enc.buf.AppendString(value)
+	}
+}
+func (enc *TextEncoder) AppendInt64(value int64) {
+	enc.addArrayElementSeparator()
+	enc.buf.AppendInt(value)
+}
+func (enc *TextEncoder) AppendFloat64(value float64) {
+	enc.appendFloatWithSeparator(value, 64)
+}
 func (enc *TextEncoder) AppendComplex64(value complex64) { enc.AppendComplex128(complex128(value)) }
 func (enc *TextEncoder) AppendFloat32(value float32)     { enc.AppendFloat64(float64(value)) }
 func (enc *TextEncoder) AppendInt32(value int32)         { enc.AppendInt64(int64(value)) }
