@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	go.uber.org/zap v1.21.0
-	golang.org/x/text v0.3.7
+	golang.org/x/text v0.3.8
 )
 
 require (
