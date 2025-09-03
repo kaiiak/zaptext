@@ -19,9 +19,9 @@ const (
 type (
 	TextEncoder struct {
 		*zapcore.EncoderConfig
-		buf    *buffer.Buffer
-		spaced bool
-		inArray bool  // flag to track if we're inside an array
+		buf     *buffer.Buffer
+		spaced  bool
+		inArray bool // flag to track if we're inside an array
 
 		// for encoding generic values by reflection
 		reflectBuf *buffer.Buffer
@@ -140,12 +140,12 @@ func (enc *TextEncoder) safeAddByteString(s []byte) {
 
 // Clone copies the encoder, ensuring that adding fields to the copy doesn't
 // affect the original.
-func (enc *TextEncoder) Clone() zapcore.Encoder { 
+func (enc *TextEncoder) Clone() zapcore.Encoder {
 	return &TextEncoder{
 		EncoderConfig: enc.EncoderConfig,
-		buf:          buffpoll.Get(),
-		spaced:       enc.spaced,
-		inArray:      false,
+		buf:           buffpoll.Get(),
+		spaced:        enc.spaced,
+		inArray:       false,
 	}
 }
 
@@ -154,38 +154,38 @@ func (enc *TextEncoder) Clone() zapcore.Encoder {
 // including fields on the `Entry` type, should be omitted.
 func (enc *TextEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (buf *buffer.Buffer, err error) {
 	final := enc.clone()
-	
+
 	// Add timestamp
 	if final.TimeKey != "" && !ent.Time.IsZero() {
 		final.AddTime(final.TimeKey, ent.Time)
 	}
-	
+
 	// Add level
 	if final.LevelKey != "" {
 		final.addElementSeparator()
 		final.buf.AppendString(ent.Level.CapitalString())
 	}
-	
+
 	// Add caller info if enabled
 	if final.CallerKey != "" && ent.Caller.Defined {
 		final.addElementSeparator()
 		final.buf.AppendString(ent.Caller.TrimmedPath())
 	}
-	
+
 	// Add message
 	if final.MessageKey != "" && ent.Message != "" {
 		final.addElementSeparator()
 		final.buf.AppendString(ent.Message)
 	}
-	
+
 	// Add fields
 	for _, field := range fields {
 		field.AddTo(final)
 	}
-	
+
 	// Add newline
 	final.buf.AppendByte('\n')
-	
+
 	return final.buf, nil
 }
 
