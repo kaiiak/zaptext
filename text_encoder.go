@@ -422,10 +422,15 @@ func (enc *TextEncoder) AppendObject(obj zapcore.ObjectMarshaler) (err error) {
 	return
 }
 
-// AppendReflected uses reflection to serialize arbitrary objects, so it's{}
-// slow and allocation-heavy.{}
+// AppendReflected uses reflection to serialize arbitrary objects, so it's
+// slow and allocation-heavy.
 func (enc *TextEncoder) AppendReflected(value any) (err error) {
-	// TODO
+	valueBytes, err := enc.encodeReflected(value)
+	if err != nil {
+		return err
+	}
+	enc.addArrayElementSeparator()
+	_, err = enc.buf.Write(valueBytes)
 	return
 }
 
