@@ -12,6 +12,51 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+func TestTextEncoderEncodeReflected(t *testing.T) {
+	enc := NewTextEncoder(zap.NewProductionEncoderConfig()).(*TextEncoder)
+
+	tests := []struct {
+		input    any
+		expected string
+	}{
+		{"hello", "hello"},
+		{123, "123"},
+		{int64(456), "456"},
+		{uint(789), "789"},
+		{float64(3.14), "3.14"},
+		{true, "true"},
+		{false, "false"},
+		{nil, "null"},
+	}
+
+	for _, tt := range tests {
+		entry := zapcore.Entry{Message: "test"}
+		fields := []zapcore.Field{
+			zap.Reflect("key", tt.input),
+		}
+		buf, err := enc.EncodeEntry(entry, fields)
+		if err != nil {
+			t.Errorf("EncodeEntry error: %v", err)
+			continue
+		}
+		got := buf.String()
+		// 查找 key=xxx
+		idx := strings.Index(got, "key=")
+		if idx == -1 {
+			t.Errorf("key not found in output: %s", got)
+			continue
+		}
+		val := got[idx+4:]
+		// 只取 key= 后的第一个字段，去除逗号、空格等分隔符
+		val = strings.SplitN(val, " ", 2)[0]
+		val = strings.SplitN(val, ",", 2)[0]
+		val = strings.TrimSpace(val)
+		if val != tt.expected {
+			t.Errorf("AddReflected(%v) = %s, want %s", tt.input, val, tt.expected)
+		}
+	}
+}
+
 func TestNewTextEncoder(t *testing.T) {
 	var (
 		cnf    = zap.NewProductionEncoderConfig()

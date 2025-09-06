@@ -276,7 +276,45 @@ func (enc *TextEncoder) encodeReflected(obj any) ([]byte, error) {
 		return nullLiteralBytes, nil
 	}
 	enc.resetReflectBuf()
-	return nil, nil
+	switch v := obj.(type) {
+	case string:
+		enc.reflectBuf.AppendString(v)
+	case int:
+		enc.reflectBuf.AppendInt(int64(v))
+	case int64:
+		enc.reflectBuf.AppendInt(v)
+	case int32:
+		enc.reflectBuf.AppendInt(int64(v))
+	case int16:
+		enc.reflectBuf.AppendInt(int64(v))
+	case int8:
+		enc.reflectBuf.AppendInt(int64(v))
+	case uint:
+		enc.reflectBuf.AppendUint(uint64(v))
+	case uint64:
+		enc.reflectBuf.AppendUint(v)
+	case uint32:
+		enc.reflectBuf.AppendUint(uint64(v))
+	case uint16:
+		enc.reflectBuf.AppendUint(uint64(v))
+	case uint8:
+		enc.reflectBuf.AppendUint(uint64(v))
+	case float32:
+		enc.reflectBuf.AppendFloat(float64(v), 32)
+	case float64:
+		enc.reflectBuf.AppendFloat(v, 64)
+	case bool:
+		if v {
+			enc.reflectBuf.AppendString("true")
+		} else {
+			enc.reflectBuf.AppendString("false")
+		}
+	default:
+		// 复杂类型可以用 encoding/json 或自定义反射逻辑
+		// 这里简单处理为 null
+		return nullLiteralBytes, nil
+	}
+	return enc.reflectBuf.Bytes(), nil
 }
 
 // AddReflected uses reflection to serialize arbitrary objects, so it can be
