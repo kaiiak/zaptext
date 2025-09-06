@@ -192,8 +192,12 @@ func (enc *TextEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (
 func (enc *TextEncoder) clone() *TextEncoder {
 	clone := textpool.Get().(*TextEncoder)
 	clone.EncoderConfig = enc.EncoderConfig
-	clone.buf = buffpoll.Get()
-	clone.spaced = false
+	if clone.buf != nil {
+		clone.buf.Reset()
+	} else {
+		clone.buf = buffpoll.Get()
+	}
+	clone.spaced = enc.spaced
 	clone.inArray = false
 	clone.reflectBuf = nil
 	clone.reflectEnc = nil
