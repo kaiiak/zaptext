@@ -30,7 +30,7 @@ type (
 )
 
 var (
-	textpool = sync.Pool{New: func() interface{} {
+	textpool = sync.Pool{New: func() any {
 		return &TextEncoder{}
 	}}
 	buffpoll = buffer.NewPool()
@@ -267,7 +267,7 @@ func (enc *TextEncoder) resetReflectBuf() {
 
 var nullLiteralBytes = []byte("null")
 
-func (enc *TextEncoder) encodeReflected(obj interface{}) ([]byte, error) {
+func (enc *TextEncoder) encodeReflected(obj any) ([]byte, error) {
 	if obj == nil {
 		return nullLiteralBytes, nil
 	}
@@ -277,7 +277,7 @@ func (enc *TextEncoder) encodeReflected(obj interface{}) ([]byte, error) {
 
 // AddReflected uses reflection to serialize arbitrary objects, so it can be
 // slow and allocation-heavy.
-func (enc *TextEncoder) AddReflected(key string, value interface{}) (err error) {
+func (enc *TextEncoder) AddReflected(key string, value any) (err error) {
 	var valueBytes []byte
 	valueBytes, err = enc.encodeReflected(value)
 	if err != nil {
@@ -424,7 +424,7 @@ func (enc *TextEncoder) AppendObject(obj zapcore.ObjectMarshaler) (err error) {
 
 // AppendReflected uses reflection to serialize arbitrary objects, so it's{}
 // slow and allocation-heavy.{}
-func (enc *TextEncoder) AppendReflected(value interface{}) (err error) {
+func (enc *TextEncoder) AppendReflected(value any) (err error) {
 	// TODO
 	return
 }

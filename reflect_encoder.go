@@ -17,7 +17,7 @@ func NewReflectEncoder(w io.Writer) *ReflectEncoder {
 	return &ReflectEncoder{w: w, escapeHTML: true}
 }
 
-func (enc *ReflectEncoder) Encode(obj interface{}) error {
+func (enc *ReflectEncoder) Encode(obj any) error {
 	if enc.err != nil {
 		return enc.err
 	}
