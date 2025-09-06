@@ -49,8 +49,8 @@ jobs:
       - name: Check
         run: go vet ./...
 
-      # - name: Build
-      #   run: go build -v .
+      - name: Build
+        run: go build -v .
 
       - name: Test
         run: go test -cover -tags test -race -timeout 30s ./...
