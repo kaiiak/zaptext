@@ -25,7 +25,14 @@ func main() {
 	// Create logger with text encoder
 	core := zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), zap.InfoLevel)
 	logger := zap.New(core, zap.AddCaller())
-	defer logger.Sync()
+
+	defer func() {
+		// Only log sync errors if they are not "invalid argument" (common on stdout/stderr)
+		err := logger.Sync()
+		if err != nil && err.Error() != "invalid argument" {
+			logger.Error("Failed to sync logger", zap.Error(err))
+		}
+	}()
 
 	// Log various types of data
 	logger.Info("Application started successfully",
