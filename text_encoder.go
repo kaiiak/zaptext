@@ -30,7 +30,7 @@ type (
 )
 
 var (
-	textpool = sync.Pool{New: func() interface{} {
+	textpool = sync.Pool{New: func() any {
 		return &TextEncoder{}
 	}}
 	buffpoll = buffer.NewPool()
@@ -192,8 +192,12 @@ func (enc *TextEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (
 func (enc *TextEncoder) clone() *TextEncoder {
 	clone := textpool.Get().(*TextEncoder)
 	clone.EncoderConfig = enc.EncoderConfig
-	clone.buf = buffpoll.Get()
-	clone.spaced = false
+	if clone.buf != nil {
+		clone.buf.Reset()
+	} else {
+		clone.buf = buffpoll.Get()
+	}
+	clone.spaced = enc.spaced
 	clone.inArray = false
 	clone.reflectBuf = nil
 	clone.reflectEnc = nil
@@ -267,17 +271,55 @@ func (enc *TextEncoder) resetReflectBuf() {
 
 var nullLiteralBytes = []byte("null")
 
-func (enc *TextEncoder) encodeReflected(obj interface{}) ([]byte, error) {
+func (enc *TextEncoder) encodeReflected(obj any) ([]byte, error) {
 	if obj == nil {
 		return nullLiteralBytes, nil
 	}
 	enc.resetReflectBuf()
-	return nil, nil
+	switch v := obj.(type) {
+	case string:
+		enc.reflectBuf.AppendString(v)
+	case int:
+		enc.reflectBuf.AppendInt(int64(v))
+	case int64:
+		enc.reflectBuf.AppendInt(v)
+	case int32:
+		enc.reflectBuf.AppendInt(int64(v))
+	case int16:
+		enc.reflectBuf.AppendInt(int64(v))
+	case int8:
+		enc.reflectBuf.AppendInt(int64(v))
+	case uint:
+		enc.reflectBuf.AppendUint(uint64(v))
+	case uint64:
+		enc.reflectBuf.AppendUint(v)
+	case uint32:
+		enc.reflectBuf.AppendUint(uint64(v))
+	case uint16:
+		enc.reflectBuf.AppendUint(uint64(v))
+	case uint8:
+		enc.reflectBuf.AppendUint(uint64(v))
+	case float32:
+		enc.reflectBuf.AppendFloat(float64(v), 32)
+	case float64:
+		enc.reflectBuf.AppendFloat(v, 64)
+	case bool:
+		if v {
+			enc.reflectBuf.AppendString("true")
+		} else {
+			enc.reflectBuf.AppendString("false")
+		}
+	default:
+		// 复杂类型可以用 encoding/json 或自定义反射逻辑
+		// 这里简单处理为 null
+		return nullLiteralBytes, nil
+	}
+	return enc.reflectBuf.Bytes(), nil
 }
 
 // AddReflected uses reflection to serialize arbitrary objects, so it can be
 // slow and allocation-heavy.
-func (enc *TextEncoder) AddReflected(key string, value interface{}) (err error) {
+func (enc *TextEncoder) AddReflected(key string, value any) (err error) {
 	var valueBytes []byte
 	valueBytes, err = enc.encodeReflected(value)
 	if err != nil {
@@ -422,10 +464,15 @@ func (enc *TextEncoder) AppendObject(obj zapcore.ObjectMarshaler) (err error) {
 	return
 }
 
-// AppendReflected uses reflection to serialize arbitrary objects, so it's{}
-// slow and allocation-heavy.{}
-func (enc *TextEncoder) AppendReflected(value interface{}) (err error) {
-	// TODO
+// AppendReflected uses reflection to serialize arbitrary objects, so it's
+// slow and allocation-heavy.
+func (enc *TextEncoder) AppendReflected(value any) (err error) {
+	valueBytes, err := enc.encodeReflected(value)
+	if err != nil {
+		return err
+	}
+	enc.addArrayElementSeparator()
+	_, err = enc.buf.Write(valueBytes)
 	return
 }
 
