@@ -18,7 +18,7 @@ func TestNewReflectEncoder(t *testing.T) {
 		if encoder == nil {
 			t.Errorf("NewReflectEncoder returned nil")
 		}
-		
+
 		// Test Release method
 		encoder.Release()
 	})
@@ -34,7 +34,7 @@ func TestReflectEncoderEncode(t *testing.T) {
 		if err != nil {
 			t.Errorf("Encode(nil) returned error: %v", err)
 		}
-		
+
 		output := w.String()
 		if output != "null" {
 			t.Errorf("Expected 'null', got '%s'", output)
@@ -50,7 +50,7 @@ func TestReflectEncoderEncode(t *testing.T) {
 		if err != nil {
 			t.Errorf("Encode('test string') returned error: %v", err)
 		}
-		
+
 		output := w.String()
 		expected := `"test string"`
 		if output != expected {
@@ -67,7 +67,7 @@ func TestReflectEncoderEncode(t *testing.T) {
 		if err != nil {
 			t.Errorf("Encode(42) returned error: %v", err)
 		}
-		
+
 		output := w.String()
 		if output != "42" {
 			t.Errorf("Expected '42', got '%s'", output)
@@ -83,7 +83,7 @@ func TestReflectEncoderEncode(t *testing.T) {
 		if err != nil {
 			t.Errorf("Encode(true) returned error: %v", err)
 		}
-		
+
 		if w1.String() != "true" {
 			t.Errorf("Expected 'true', got '%s'", w1.String())
 		}
@@ -96,7 +96,7 @@ func TestReflectEncoderEncode(t *testing.T) {
 		if err != nil {
 			t.Errorf("Encode(false) returned error: %v", err)
 		}
-		
+
 		if w2.String() != "false" {
 			t.Errorf("Expected 'false', got '%s'", w2.String())
 		}
@@ -117,7 +117,7 @@ func TestReflectEncoderEncode(t *testing.T) {
 		if err != nil {
 			t.Errorf("Encode(struct) returned error: %v", err)
 		}
-		
+
 		output := w.String()
 		// Should contain both fields (now expects proper JSON format)
 		if !strings.Contains(output, `"name":"test"`) || !strings.Contains(output, `"value":123`) {
@@ -140,7 +140,7 @@ func TestReflectEncoderEncode(t *testing.T) {
 		if err != nil {
 			t.Errorf("Encode(map) returned error: %v", err)
 		}
-		
+
 		output := w.String()
 		// Should start and end with braces and contain the keys
 		if !strings.HasPrefix(output, "{") || !strings.HasSuffix(output, "}") {
@@ -159,7 +159,7 @@ func TestReflectEncoderEncode(t *testing.T) {
 		if err != nil {
 			t.Errorf("Encode(slice) returned error: %v", err)
 		}
-		
+
 		output := w.String()
 		// Should start and end with brackets
 		if !strings.HasPrefix(output, "[") || !strings.HasSuffix(output, "]") {
@@ -176,7 +176,7 @@ func TestReflectEncoderEncode(t *testing.T) {
 		if err != nil {
 			t.Errorf("Encode(3.14159) returned error: %v", err)
 		}
-		
+
 		output := w.String()
 		if !strings.Contains(output, "3.14159") {
 			t.Errorf("Expected float representation, got '%s'", output)
@@ -193,7 +193,7 @@ func TestReflectEncoderEncode(t *testing.T) {
 		if err != nil {
 			t.Errorf("Encode(time) returned error: %v", err)
 		}
-		
+
 		output := w.String()
 		// Should be in RFC3339 format with quotes
 		expected := `"2023-01-01T12:00:00Z"`
@@ -213,7 +213,7 @@ func TestReflectEncoderEncode(t *testing.T) {
 		if err != nil {
 			t.Errorf("Encode(pointer) returned error: %v", err)
 		}
-		
+
 		output := w.String()
 		if output != "42" {
 			t.Errorf("Expected '42', got '%s'", output)
@@ -230,7 +230,7 @@ func TestReflectEncoderEncode(t *testing.T) {
 		if err != nil {
 			t.Errorf("Encode(nil pointer) returned error: %v", err)
 		}
-		
+
 		output := w.String()
 		if output != "null" {
 			t.Errorf("Expected 'null', got '%s'", output)
@@ -256,7 +256,7 @@ func TestReflectEncoderErrorHandling(t *testing.T) {
 		if err != nil {
 			t.Errorf("Second Encode returned error: %v", err)
 		}
-		
+
 		output := w.String()
 		if output != `"second"` {
 			t.Errorf("Expected '\"second\"', got '%s'", output)
@@ -277,7 +277,7 @@ func TestReflectEncoderErrorHandling(t *testing.T) {
 		var root *recursive
 		current := &recursive{Data: "root"}
 		root = current
-		
+
 		// Create a chain longer than maxDepth
 		for i := 0; i < 35; i++ {
 			current.Next = &recursive{Data: fmt.Sprintf("level%d", i)}
@@ -394,7 +394,7 @@ func TestReflectEncoderComplexTypes(t *testing.T) {
 			Count: 5,
 			Tags:  []string{"tag1", "tag2"},
 			Metadata: map[string]string{
-				"author": "test",
+				"author":  "test",
 				"version": "1.0",
 			},
 			Nested: NestedStruct{
@@ -407,7 +407,7 @@ func TestReflectEncoderComplexTypes(t *testing.T) {
 		if err != nil {
 			t.Errorf("Encode(complex struct) returned error: %v", err)
 		}
-		
+
 		output := w.String()
 		// Verify the structure is properly encoded
 		if !strings.Contains(output, `"title":"Test Object"`) {

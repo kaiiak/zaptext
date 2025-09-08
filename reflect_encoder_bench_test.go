@@ -9,12 +9,12 @@ import (
 )
 
 type benchStruct struct {
-	Name      string    `json:"name"`
-	Age       int       `json:"age"`
-	IsActive  bool      `json:"is_active"`
-	Score     float64   `json:"score"`
-	CreatedAt time.Time `json:"created_at"`
-	Tags      []string  `json:"tags"`
+	Name      string         `json:"name"`
+	Age       int            `json:"age"`
+	IsActive  bool           `json:"is_active"`
+	Score     float64        `json:"score"`
+	CreatedAt time.Time      `json:"created_at"`
+	Tags      []string       `json:"tags"`
 	Settings  map[string]any `json:"settings"`
 }
 
@@ -32,7 +32,7 @@ func BenchmarkReflectEncoderEncode(b *testing.B) {
 			"limit":         100,
 		},
 	}
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		w := bytes.NewBuffer(make([]byte, 0, 1024))
@@ -56,7 +56,7 @@ func BenchmarkReflectEncoderEncodeMap(b *testing.B) {
 			"key2": "value2",
 		},
 	}
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		w := bytes.NewBuffer(make([]byte, 0, 512))
@@ -77,7 +77,7 @@ func BenchmarkReflectEncoderEncodeSlice(b *testing.B) {
 		[]int{1, 2, 3},
 		map[string]string{"key": "value"},
 	}
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		w := bytes.NewBuffer(make([]byte, 0, 256))

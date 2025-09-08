@@ -22,7 +22,7 @@ var (
 			return &ReflectEncoder{}
 		},
 	}
-	
+
 	// Buffer pool for temporary buffers
 	bufferPool = sync.Pool{
 		New: func() any {
@@ -37,9 +37,10 @@ var (
 // slices, maps, structs), and special cases like time.Time formatting.
 //
 // Example usage:
-//   encoder := zaptext.NewReflectEncoder(os.Stdout)
-//   defer encoder.Release() // Return to pool for reuse
-//   err := encoder.Encode(myStruct)
+//
+//	encoder := zaptext.NewReflectEncoder(os.Stdout)
+//	defer encoder.Release() // Return to pool for reuse
+//	err := encoder.Encode(myStruct)
 type ReflectEncoder struct {
 	w          io.Writer
 	err        error
@@ -60,12 +61,12 @@ func NewReflectEncoder(w io.Writer) *ReflectEncoder {
 	enc.depth = 0
 	enc.maxDepth = 32 // Default maximum depth to prevent infinite recursion
 	enc.err = nil
-	
+
 	if enc.buf == nil {
 		enc.buf = bufferPool.Get().(*bytes.Buffer)
 	}
 	enc.buf.Reset()
-	
+
 	return enc
 }
 
@@ -102,26 +103,26 @@ func (enc *ReflectEncoder) Encode(obj any) error {
 	if enc.err != nil {
 		return enc.err
 	}
-	
+
 	if enc.buf == nil {
 		enc.buf = bufferPool.Get().(*bytes.Buffer)
 	}
-	
+
 	// Reset buffer for fresh encoding
 	enc.buf.Reset()
-	
+
 	// Encode the object using reflection
 	if err := enc.encodeValue(reflect.ValueOf(obj)); err != nil {
 		enc.err = err
 		return err
 	}
-	
+
 	// Write the buffer to the writer
 	if _, err := enc.w.Write(enc.buf.Bytes()); err != nil {
 		enc.err = err
 		return err
 	}
-	
+
 	return nil
 }
 
@@ -130,13 +131,13 @@ func (enc *ReflectEncoder) encodeValue(v reflect.Value) error {
 	if enc.depth > enc.maxDepth {
 		return fmt.Errorf("maximum encoding depth exceeded: %d", enc.maxDepth)
 	}
-	
+
 	// Handle invalid values
 	if !v.IsValid() {
 		enc.buf.WriteString("null")
 		return nil
 	}
-	
+
 	// Handle pointers and interfaces
 	for v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface {
 		if v.IsNil() {
@@ -145,7 +146,7 @@ func (enc *ReflectEncoder) encodeValue(v reflect.Value) error {
 		}
 		v = v.Elem()
 	}
-	
+
 	switch v.Kind() {
 	case reflect.Bool:
 		if v.Bool() {
@@ -153,48 +154,48 @@ func (enc *ReflectEncoder) encodeValue(v reflect.Value) error {
 		} else {
 			enc.buf.WriteString("false")
 		}
-		
+
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		enc.buf.WriteString(strconv.FormatInt(v.Int(), 10))
-		
+
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
 		enc.buf.WriteString(strconv.FormatUint(v.Uint(), 10))
-		
+
 	case reflect.Float32, reflect.Float64:
 		f := v.Float()
 		enc.buf.WriteString(strconv.FormatFloat(f, 'g', -1, v.Type().Bits()))
-		
+
 	case reflect.Complex64, reflect.Complex128:
 		c := v.Complex()
 		enc.buf.WriteString(fmt.Sprintf("(%g+%gi)", real(c), imag(c)))
-		
+
 	case reflect.String:
 		enc.buf.WriteByte('"')
 		enc.writeEscapedString(v.String())
 		enc.buf.WriteByte('"')
-		
+
 	case reflect.Array, reflect.Slice:
 		if v.IsNil() {
 			enc.buf.WriteString("null")
 			return nil
 		}
 		return enc.encodeArray(v)
-		
+
 	case reflect.Map:
 		if v.IsNil() {
 			enc.buf.WriteString("null")
 			return nil
 		}
 		return enc.encodeMap(v)
-		
+
 	case reflect.Struct:
 		return enc.encodeStruct(v)
-		
+
 	default:
 		// For types we don't handle specifically, try to convert to string
 		enc.encodeString(fmt.Sprintf("%v", v.Interface()))
 	}
-	
+
 	return nil
 }
 
@@ -233,10 +234,10 @@ func (enc *ReflectEncoder) writeEscapedString(s string) {
 
 func (enc *ReflectEncoder) encodeArray(v reflect.Value) error {
 	enc.buf.WriteByte('[')
-	
+
 	enc.depth++
 	defer func() { enc.depth-- }()
-	
+
 	length := v.Len()
 	for i := 0; i < length; i++ {
 		if i > 0 {
@@ -246,80 +247,80 @@ func (enc *ReflectEncoder) encodeArray(v reflect.Value) error {
 			return err
 		}
 	}
-	
+
 	enc.buf.WriteByte(']')
 	return nil
 }
 
 func (enc *ReflectEncoder) encodeMap(v reflect.Value) error {
 	enc.buf.WriteByte('{')
-	
+
 	enc.depth++
 	defer func() { enc.depth-- }()
-	
+
 	keys := v.MapKeys()
-	
+
 	// Sort keys for deterministic output
 	sort.Slice(keys, func(i, j int) bool {
 		return fmt.Sprintf("%v", keys[i].Interface()) < fmt.Sprintf("%v", keys[j].Interface())
 	})
-	
+
 	for i, key := range keys {
 		if i > 0 {
 			enc.buf.WriteByte(',')
 		}
-		
+
 		// Encode key
 		keyStr := fmt.Sprintf("%v", key.Interface())
 		enc.buf.WriteByte('"')
 		enc.buf.WriteString(keyStr)
 		enc.buf.WriteByte('"')
 		enc.buf.WriteByte(':')
-		
+
 		// Encode value
 		if err := enc.encodeValue(v.MapIndex(key)); err != nil {
 			return err
 		}
 	}
-	
+
 	enc.buf.WriteByte('}')
 	return nil
 }
 
 func (enc *ReflectEncoder) encodeStruct(v reflect.Value) error {
 	t := v.Type()
-	
+
 	// Handle time.Time specially
 	if t == reflect.TypeOf(time.Time{}) {
 		timeVal := v.Interface().(time.Time)
 		enc.encodeString(timeVal.Format(time.RFC3339))
 		return nil
 	}
-	
+
 	enc.buf.WriteByte('{')
-	
+
 	enc.depth++
 	defer func() { enc.depth-- }()
-	
+
 	fieldCount := 0
 	for i := 0; i < v.NumField(); i++ {
 		field := t.Field(i)
 		fieldValue := v.Field(i)
-		
+
 		// Skip unexported fields
 		if !field.IsExported() {
 			continue
 		}
-		
+
 		// Skip nil pointers
 		if fieldValue.Kind() == reflect.Ptr && fieldValue.IsNil() {
 			continue
 		}
-		
+
 		if fieldCount > 0 {
 			enc.buf.WriteByte(',')
 		}
-		
+
 		// Use json tag if available, otherwise use field name
 		fieldName := field.Name
 		if tag := field.Tag.Get("json"); tag != "" && tag != "-" {
@@ -329,20 +330,20 @@ func (enc *ReflectEncoder) encodeStruct(v reflect.Value) error {
 				fieldName = tag
 			}
 		}
-		
+
 		// Always quote field names in JSON format
 		enc.buf.WriteByte('"')
 		enc.buf.WriteString(fieldName)
 		enc.buf.WriteByte('"')
 		enc.buf.WriteByte(':')
-		
+
 		if err := enc.encodeValue(fieldValue); err != nil {
 			return err
 		}
-		
+
 		fieldCount++
 	}
-	
+
 	enc.buf.WriteByte('}')
 	return nil
 }
