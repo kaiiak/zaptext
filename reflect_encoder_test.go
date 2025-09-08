@@ -319,6 +319,57 @@ func (fw *failingWriter) Write(p []byte) (n int, err error) {
 	return 0, fmt.Errorf("write failed")
 }
 
+func TestReflectEncoderSetMaxDepth(t *testing.T) {
+	t.Run("SetMaxDepth configuration", func(t *testing.T) {
+		w := &bytes.Buffer{}
+		encoder := NewReflectEncoder(w)
+		defer encoder.Release()
+
+		// Set a very low max depth
+		encoder.SetMaxDepth(2)
+
+		// Create a deeply nested structure that should exceed the limit
+		type DeepStruct struct {
+			Name string
+			Next *DeepStruct
+		}
+
+		deep := &DeepStruct{
+			Name: "level1",
+			Next: &DeepStruct{
+				Name: "level2",
+				Next: &DeepStruct{
+					Name: "level3", // This should exceed depth 2
+				},
+			},
+		}
+
+		err := encoder.Encode(deep)
+		if err == nil {
+			t.Errorf("Expected depth limit error, but got nil")
+		}
+		if !strings.Contains(err.Error(), "maximum encoding depth exceeded") {
+			t.Errorf("Expected depth limit error, got: %v", err)
+		}
+	})
+
+	t.Run("SetMaxDepth with invalid value", func(t *testing.T) {
+		w := &bytes.Buffer{}
+		encoder := NewReflectEncoder(w)
+		defer encoder.Release()
+
+		// Try to set invalid depth (should be ignored)
+		encoder.SetMaxDepth(0)
+		encoder.SetMaxDepth(-1)
+
+		// Should still work with simple structure (using default depth)
+		err := encoder.Encode("test")
+		if err != nil {
+			t.Errorf("Expected no error for simple encoding, got: %v", err)
+		}
+	})
+}
+
 func TestReflectEncoderComplexTypes(t *testing.T) {
 	t.Run("Encode complex nested structure", func(t *testing.T) {
 		w := &bytes.Buffer{}

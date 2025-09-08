@@ -1,3 +1,6 @@
+// Package zaptext provides text-based encoding for structured logging.
+// The ReflectEncoder provides reflection-based encoding of arbitrary Go data structures
+// into a JSON-like format, with object pooling for performance optimization.
 package zaptext
 
 import (
@@ -28,20 +31,34 @@ var (
 	}
 )
 
+// ReflectEncoder provides reflection-based encoding of Go data structures into JSON-like format.
+// It supports object pooling for performance optimization and includes protection against
+// infinite recursion. The encoder handles all Go primitive types, compound types (arrays,
+// slices, maps, structs), and special cases like time.Time formatting.
+//
+// Example usage:
+//   encoder := zaptext.NewReflectEncoder(os.Stdout)
+//   defer encoder.Release() // Return to pool for reuse
+//   err := encoder.Encode(myStruct)
 type ReflectEncoder struct {
 	w          io.Writer
 	err        error
 	escapeHTML bool
 	depth      int
+	maxDepth   int
 
 	buf *bytes.Buffer
 }
 
+// NewReflectEncoder creates a new ReflectEncoder from the object pool.
+// The encoder is configured to write to the provided io.Writer.
+// Always call Release() when done to return the encoder to the pool.
 func NewReflectEncoder(w io.Writer) *ReflectEncoder {
 	enc := reflectEncoderPool.Get().(*ReflectEncoder)
 	enc.w = w
 	enc.escapeHTML = true
 	enc.depth = 0
+	enc.maxDepth = 32 // Default maximum depth to prevent infinite recursion
 	enc.err = nil
 	
 	if enc.buf == nil {
@@ -52,7 +69,17 @@ func NewReflectEncoder(w io.Writer) *ReflectEncoder {
 	return enc
 }
 
-// Release returns the encoder back to the pool for reuse
+// SetMaxDepth configures the maximum recursion depth to prevent infinite loops.
+// The default value is 32. Setting a lower value may prevent encoding of deeply
+// nested structures, while higher values may risk stack overflow with circular references.
+func (enc *ReflectEncoder) SetMaxDepth(depth int) {
+	if depth > 0 {
+		enc.maxDepth = depth
+	}
+}
+
+// Release returns the encoder back to the pool for reuse.
+// This should always be called when done with an encoder to optimize memory usage.
 func (enc *ReflectEncoder) Release() {
 	if enc.buf != nil {
 		enc.buf.Reset()
@@ -62,9 +89,15 @@ func (enc *ReflectEncoder) Release() {
 	enc.w = nil
 	enc.err = nil
 	enc.depth = 0
+	enc.maxDepth = 32 // Reset to default
 	reflectEncoderPool.Put(enc)
 }
 
+// Encode encodes the given object using reflection into JSON-like format.
+// It handles all Go primitive types, compound types, and includes special handling
+// for time.Time. The method includes protection against infinite recursion with
+// a maximum depth limit. If an error occurs, the encoder maintains error state
+// for subsequent calls.
 func (enc *ReflectEncoder) Encode(obj any) error {
 	if enc.err != nil {
 		return enc.err
@@ -92,13 +125,10 @@ func (enc *ReflectEncoder) Encode(obj any) error {
 	return nil
 }
 
-// Maximum depth to prevent infinite recursion
-const maxDepth = 32
-
 func (enc *ReflectEncoder) encodeValue(v reflect.Value) error {
 	// Prevent infinite recursion
-	if enc.depth > maxDepth {
-		return fmt.Errorf("maximum encoding depth exceeded: %d", maxDepth)
+	if enc.depth > enc.maxDepth {
+		return fmt.Errorf("maximum encoding depth exceeded: %d", enc.maxDepth)
 	}
 	
 	// Handle invalid values
