@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -9,7 +10,31 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+type User struct {
+	ID       int               `json:"id"`
+	Name     string            `json:"name"`
+	Email    string            `json:"email"`
+	IsActive bool              `json:"is_active"`
+	Profile  UserProfile       `json:"profile"`
+	Tags     []string          `json:"tags"`
+	Settings map[string]string `json:"settings"`
+}
+
+type UserProfile struct {
+	Age      int       `json:"age"`
+	Location string    `json:"location"`
+	JoinDate time.Time `json:"join_date"`
+}
+
 func main() {
+	fmt.Println("=== ZapText TextEncoder Example ===")
+	textEncoderExample()
+	
+	fmt.Println("\n=== ZapText ReflectEncoder Example ===")
+	reflectEncoderExample()
+}
+
+func textEncoderExample() {
 	// Configure encoder for human-readable text output
 	cfg := zap.NewProductionEncoderConfig()
 	cfg.TimeKey = "time"
@@ -61,4 +86,75 @@ func main() {
 		zap.Duration("timeout", 30*time.Second),
 		zap.Int("retry_count", 3),
 	)
+}
+
+func reflectEncoderExample() {
+	// Create a sample user object
+	user := User{
+		ID:       123,
+		Name:     "John Doe",
+		Email:    "john.doe@example.com",
+		IsActive: true,
+		Profile: UserProfile{
+			Age:      30,
+			Location: "San Francisco",
+			JoinDate: time.Date(2023, 1, 15, 10, 30, 0, 0, time.UTC),
+		},
+		Tags:     []string{"premium", "verified", "early_adopter"},
+		Settings: map[string]string{
+			"theme":         "dark",
+			"notifications": "enabled",
+			"language":      "en",
+		},
+	}
+
+	// Demonstrate ReflectEncoder with different data types
+	fmt.Println("1. Encoding User struct:")
+	encoder1 := zaptext.NewReflectEncoder(os.Stdout)
+	encoder1.Encode(user)
+	encoder1.Release()
+	fmt.Println()
+
+	fmt.Println("\n2. Encoding simple map:")
+	simpleMap := map[string]any{
+		"message": "Hello World",
+		"count":   42,
+		"active":  true,
+		"pi":      3.14159,
+	}
+	encoder2 := zaptext.NewReflectEncoder(os.Stdout)
+	encoder2.Encode(simpleMap)
+	encoder2.Release()
+	fmt.Println()
+
+	fmt.Println("\n3. Encoding array of mixed types:")
+	mixedArray := []any{
+		"string",
+		123,
+		true,
+		[]int{1, 2, 3},
+		map[string]string{"key": "value"},
+	}
+	encoder3 := zaptext.NewReflectEncoder(os.Stdout)
+	encoder3.Encode(mixedArray)
+	encoder3.Release()
+	fmt.Println()
+
+	fmt.Println("\n4. Encoding primitive values:")
+	primitives := []any{
+		"Hello, World!",
+		42,
+		3.14159,
+		true,
+		time.Now(),
+		nil,
+	}
+	
+	for i, val := range primitives {
+		fmt.Printf("  %d. ", i+1)
+		encoder := zaptext.NewReflectEncoder(os.Stdout)
+		encoder.Encode(val)
+		encoder.Release()
+		fmt.Println()
+	}
 }
