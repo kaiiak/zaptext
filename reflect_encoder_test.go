@@ -418,3 +418,141 @@ func TestReflectEncoderComplexTypes(t *testing.T) {
 		}
 	})
 }
+
+func TestReflectEncoderStringEscaping(t *testing.T) {
+	t.Run("HTML escaping with default behavior", func(t *testing.T) {
+		w := &bytes.Buffer{}
+		encoder := NewReflectEncoder(w)
+		defer encoder.Release()
+
+		// Test HTML characters that should be escaped by default
+		testString := `<html>& "quotes" </div>`
+		err := encoder.Encode(testString)
+		if err != nil {
+			t.Errorf("Encode(HTML string) returned error: %v", err)
+		}
+
+		output := w.String()
+		// Should escape HTML characters
+		if !strings.Contains(output, `\u003chtml\u003e`) {
+			t.Errorf("Expected escaped HTML tags, got: %s", output)
+		}
+		if !strings.Contains(output, `\u0026`) {
+			t.Errorf("Expected escaped ampersand, got: %s", output)
+		}
+	})
+
+	t.Run("HTML escaping disabled", func(t *testing.T) {
+		w := &bytes.Buffer{}
+		encoder := NewReflectEncoder(w)
+		defer encoder.Release()
+
+		// Disable HTML escaping
+		encoder.SetEscapeHTML(false)
+
+		// Test HTML characters that should NOT be escaped when disabled
+		testString := `<html>& "quotes" </div>`
+		err := encoder.Encode(testString)
+		if err != nil {
+			t.Errorf("Encode(HTML string) returned error: %v", err)
+		}
+
+		output := w.String()
+		// Should NOT escape HTML characters
+		if strings.Contains(output, `\u003c`) || strings.Contains(output, `\u003e`) || strings.Contains(output, `\u0026`) {
+			t.Errorf("Expected unescaped HTML characters, got: %s", output)
+		}
+		// But should still escape quotes
+		if !strings.Contains(output, `\"quotes\"`) {
+			t.Errorf("Expected escaped quotes, got: %s", output)
+		}
+	})
+
+	t.Run("Special character escaping", func(t *testing.T) {
+		w := &bytes.Buffer{}
+		encoder := NewReflectEncoder(w)
+		defer encoder.Release()
+
+		// Test various special characters
+		testString := "line1\nline2\rline3\tline4\\backslash\"quote"
+		err := encoder.Encode(testString)
+		if err != nil {
+			t.Errorf("Encode(special chars) returned error: %v", err)
+		}
+
+		output := w.String()
+		// Check for proper escaping
+		if !strings.Contains(output, `\n`) {
+			t.Errorf("Expected escaped newline, got: %s", output)
+		}
+		if !strings.Contains(output, `\r`) {
+			t.Errorf("Expected escaped carriage return, got: %s", output)
+		}
+		if !strings.Contains(output, `\t`) {
+			t.Errorf("Expected escaped tab, got: %s", output)
+		}
+		if !strings.Contains(output, `\\`) {
+			t.Errorf("Expected escaped backslash, got: %s", output)
+		}
+		if !strings.Contains(output, `\"`) {
+			t.Errorf("Expected escaped quote, got: %s", output)
+		}
+	})
+
+	t.Run("Control character escaping", func(t *testing.T) {
+		w := &bytes.Buffer{}
+		encoder := NewReflectEncoder(w)
+		defer encoder.Release()
+
+		// Test control characters (ASCII 0-31)
+		testString := "\x00\x01\x1f" // null, start of heading, unit separator
+		err := encoder.Encode(testString)
+		if err != nil {
+			t.Errorf("Encode(control chars) returned error: %v", err)
+		}
+
+		output := w.String()
+		// Should escape control characters as unicode
+		if !strings.Contains(output, `\u0000`) {
+			t.Errorf("Expected escaped null character, got: %s", output)
+		}
+		if !strings.Contains(output, `\u0001`) {
+			t.Errorf("Expected escaped SOH character, got: %s", output)
+		}
+		if !strings.Contains(output, `\u001f`) {
+			t.Errorf("Expected escaped US character, got: %s", output)
+		}
+	})
+
+	t.Run("Complex number format", func(t *testing.T) {
+		w := &bytes.Buffer{}
+		encoder := NewReflectEncoder(w)
+		defer encoder.Release()
+
+		// Test complex64
+		c64 := complex(float32(1.5), float32(2.5))
+		err := encoder.Encode(c64)
+		if err != nil {
+			t.Errorf("Encode(complex64) returned error: %v", err)
+		}
+
+		output := w.String()
+		// Should use JSON-compatible format
+		if !strings.Contains(output, `{"real":1.5,"imag":2.5}`) {
+			t.Errorf("Expected JSON-compatible complex number format, got: %s", output)
+		}
+
+		// Test complex128
+		w.Reset()
+		c128 := complex(3.14, 2.71)
+		err = encoder.Encode(c128)
+		if err != nil {
+			t.Errorf("Encode(complex128) returned error: %v", err)
+		}
+
+		output = w.String()
+		if !strings.Contains(output, `{"real":3.14,"imag":2.71}`) {
+			t.Errorf("Expected JSON-compatible complex number format, got: %s", output)
+		}
+	})
+}

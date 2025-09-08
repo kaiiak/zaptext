@@ -15,6 +15,11 @@ import (
 	"time"
 )
 
+const (
+	// DefaultMaxDepth is the default maximum recursion depth to prevent infinite loops
+	DefaultMaxDepth = 32
+)
+
 var (
 	// Object pool for ReflectEncoder to optimize memory allocation
 	reflectEncoderPool = sync.Pool{
@@ -59,7 +64,7 @@ func NewReflectEncoder(w io.Writer) *ReflectEncoder {
 	enc.w = w
 	enc.escapeHTML = true
 	enc.depth = 0
-	enc.maxDepth = 32 // Default maximum depth to prevent infinite recursion
+	enc.maxDepth = DefaultMaxDepth // Default maximum depth to prevent infinite recursion
 	enc.err = nil
 
 	if enc.buf == nil {
@@ -79,6 +84,13 @@ func (enc *ReflectEncoder) SetMaxDepth(depth int) {
 	}
 }
 
+// SetEscapeHTML configures whether to escape HTML characters in strings.
+// When enabled (default), characters like <, >, and & are escaped to their HTML entities.
+// This is useful when the output might be embedded in HTML documents.
+func (enc *ReflectEncoder) SetEscapeHTML(escape bool) {
+	enc.escapeHTML = escape
+}
+
 // Release returns the encoder back to the pool for reuse.
 // This should always be called when done with an encoder to optimize memory usage.
 func (enc *ReflectEncoder) Release() {
@@ -90,7 +102,7 @@ func (enc *ReflectEncoder) Release() {
 	enc.w = nil
 	enc.err = nil
 	enc.depth = 0
-	enc.maxDepth = 32 // Reset to default
+	enc.maxDepth = DefaultMaxDepth // Reset to default
 	reflectEncoderPool.Put(enc)
 }
 
@@ -167,7 +179,13 @@ func (enc *ReflectEncoder) encodeValue(v reflect.Value) error {
 
 	case reflect.Complex64, reflect.Complex128:
 		c := v.Complex()
-		enc.buf.WriteString(fmt.Sprintf("(%g+%gi)", real(c), imag(c)))
+		// Use JSON-compatible format: {"real": 1.0, "imag": 2.0}
+		enc.buf.WriteByte('{')
+		enc.buf.WriteString(`"real":`)
+		enc.buf.WriteString(strconv.FormatFloat(real(c), 'g', -1, 64))
+		enc.buf.WriteString(`,"imag":`)
+		enc.buf.WriteString(strconv.FormatFloat(imag(c), 'g', -1, 64))
+		enc.buf.WriteByte('}')
 
 	case reflect.String:
 		enc.buf.WriteByte('"')
@@ -222,6 +240,24 @@ func (enc *ReflectEncoder) writeEscapedString(s string) {
 			enc.buf.WriteString(`\r`)
 		case '\t':
 			enc.buf.WriteString(`\t`)
+		case '<':
+			if enc.escapeHTML {
+				enc.buf.WriteString(`\u003c`)
+			} else {
+				enc.buf.WriteRune(r)
+			}
+		case '>':
+			if enc.escapeHTML {
+				enc.buf.WriteString(`\u003e`)
+			} else {
+				enc.buf.WriteRune(r)
+			}
+		case '&':
+			if enc.escapeHTML {
+				enc.buf.WriteString(`\u0026`)
+			} else {
+				enc.buf.WriteRune(r)
+			}
 		default:
 			if r < 32 {
 				enc.buf.WriteString(fmt.Sprintf(`\u%04x`, r))
@@ -307,12 +343,13 @@ func (enc *ReflectEncoder) encodeStruct(v reflect.Value) error {
 		field := t.Field(i)
 		fieldValue := v.Field(i)
 
-		// Skip unexported fields
+		// Skip unexported fields - these cannot be accessed via reflection and would cause errors
 		if !field.IsExported() {
 			continue
 		}
 
-		// Skip nil pointers
+		// Skip nil pointers to avoid encoding null fields in structs
+		// This creates cleaner output by omitting optional fields that are not set
 		if fieldValue.Kind() == reflect.Ptr && fieldValue.IsNil() {
 			continue
 		}
