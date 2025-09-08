@@ -414,7 +414,7 @@ func needsQuoting(s string) bool {
 		return true
 	}
 	for _, r := range s {
-		if r == ' ' || r == '\t' || r == '\n' || r == '\r' || r == '"' || r == '=' {
+		if r == ' ' || r == '\t' || r == '\n' || r == '\r' || r == '"' || r == '=' || r == '{' || r == '}' || r == '[' || r == ']' || r == ',' || r == ':' {
 			return true
 		}
 	}
